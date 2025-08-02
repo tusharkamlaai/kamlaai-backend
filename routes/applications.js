@@ -1,23 +1,18 @@
 const express = require('express');
-const router = express.Router();
 const multer = require('multer');
-const path = require('path');
-const supabase = require('../config/db');
-const { verifyToken } = require('../middlewares/auth');
+const router = express.Router();
+const { createClient } = require('@supabase/supabase-js');
+const supabase = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_KEY);
 
-// Configure multer for file uploads
-const storage = multer.diskStorage({
-  destination: (req, file, cb) => {
-    cb(null, 'uploads/');
-  },
-  filename: (req, file, cb) => {
-    const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
-    cb(null, 'resume-' + uniqueSuffix + path.extname(file.originalname));
-  }
-});
+// UUID validation helper
+function isValidUUID(uuid) {
+  return /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(uuid);
+}
 
-const upload = multer({ 
-  storage: storage,
+// Memory storage for file uploads
+const upload = multer({
+  storage: multer.memoryStorage(),
+  limits: { fileSize: 5 * 1024 * 1024 }, // 5MB
   fileFilter: (req, file, cb) => {
     if (file.mimetype === 'application/pdf') {
       cb(null, true);
@@ -27,75 +22,61 @@ const upload = multer({
   }
 });
 
-// Apply for job
-// In routes/applications.js
+// Submit application
 router.post('/', upload.single('resume'), async (req, res) => {
   try {
-    const { 
-      jobId,
-      name,
-      email,
-      phone,
-      expected_salary,
-      cover_letter,
-      location,
-      city,
-      education,
-      position_applying
-    } = req.body;
-
     // Validate required fields
     if (!req.file) {
-      return res.status(400).json({ error: 'Resume is required' });
+      return res.status(400).json({ error: "Resume file is required" });
     }
 
-    // Check if user already applied to this job
-    const { data: existingApplication, error: checkError } = await supabase
-      .from('applications')
-      .select('id')
-      .eq('job_id', jobId)
-      .eq('user_id', req.user.id)
-      .single();
+    if (!req.body.jobId || !isValidUUID(req.body.jobId)) {
+      return res.status(400).json({ error: "Valid job ID is required" });
+    }
 
-    if (existingApplication) {
-      return res.status(400).json({ 
-        error: 'You have already applied to this job position',
-        application_id: existingApplication.id
+    // Upload resume to Supabase Storage
+    const fileName = `resume-${Date.now()}-${req.user.id}.pdf`;
+    const { error: uploadError } = await supabase.storage
+      .from('resumes')
+      .upload(fileName, req.file.buffer, {
+        contentType: 'application/pdf',
+        upsert: false
       });
-    }
 
-    const resumeUrl = `${req.protocol}://${req.get('host')}/${req.file.filename}`;
+    if (uploadError) throw uploadError;
 
-    const { data: application, error } = await supabase
+    // Get public URL
+    const { data: { publicUrl } } = supabase.storage
+      .from('resumes')
+      .getPublicUrl(fileName);
+
+    // Save application to database
+    const { data, error: dbError } = await supabase
       .from('applications')
       .insert([{
-        job_id: jobId,
+        job_id: req.body.jobId,
         user_id: req.user.id,
-        name,
-        email,
-        phone,
-        expected_salary,
-        cover_letter,
-        location,
-        city,
-        education,
-        position_applying,
-        resume_url: resumeUrl,
-        status: 'pending'
+        name: req.body.name,
+        email: req.body.email,
+        phone: req.body.phone,
+        expected_salary: req.body.expected_salary,
+        cover_letter: req.body.cover_letter,
+        location: req.body.location,
+        city: req.body.city,
+        education: req.body.education,
+        position_applying: req.body.position_applying,
+        resume_url: publicUrl
       }])
-      .select('*')
-      .single();
+      .select();
 
-    if (error) throw error;
-    
-    res.status(201).json({
-      message: 'Application submitted successfully',
-      application
-    });
+    if (dbError) throw dbError;
+
+    res.status(201).json(data[0]);
+
   } catch (error) {
     console.error('Application Error:', error);
     res.status(500).json({ 
-      error: 'Failed to submit application',
+      error: "Failed to submit application",
       details: error.message 
     });
   }
@@ -104,16 +85,26 @@ router.post('/', upload.single('resume'), async (req, res) => {
 // Get user's applications
 router.get('/my-applications', async (req, res) => {
   try {
-    const { data: applications, error } = await supabase
+    const { data, error } = await supabase
       .from('applications')
-      .select('*, jobs(*)')
-      .eq('user_id', req.user.id);
+      .select(`
+        id,
+        status,
+        applied_at,
+        jobs (
+          id,
+          title,
+          company,
+          location
+        )
+      `)
+      .eq('user_id', req.user.id)
+      .order('applied_at', { ascending: false });
 
     if (error) throw error;
-    res.json(applications);
+    res.json(data);
   } catch (error) {
-    console.error(error);
-    res.status(500).json({ error: 'Failed to fetch applications' });
+    res.status(500).json({ error: error.message });
   }
 });
 
