@@ -25,7 +25,7 @@ const upload = multer({
 // Submit application
 router.post('/', upload.single('resume'), async (req, res) => {
   try {
-    // Validate required fields
+    // 1. Validate required fields
     if (!req.file) {
       return res.status(400).json({ error: "Resume file is required" });
     }
@@ -34,26 +34,36 @@ router.post('/', upload.single('resume'), async (req, res) => {
       return res.status(400).json({ error: "Valid job ID is required" });
     }
 
-    // Upload resume to Supabase Storage
+    // 2. Check for existing application (NEW)
+    const { data: existingApp, error: checkError } = await supabase
+      .from('applications')
+      .select('id')
+      .eq('job_id', req.body.jobId)
+      .eq('user_id', req.user.id)
+      .maybeSingle();
+
+    if (checkError) throw checkError;
+    if (existingApp) {
+      return res.status(409).json({ 
+        error: "You've already applied to this job",
+        application_id: existingApp.id
+      });
+    }
+
+    // 3. Upload resume
     const fileName = `resume-${Date.now()}-${req.user.id}.pdf`;
     const { error: uploadError } = await supabase.storage
       .from('resumes')
       .upload(fileName, req.file.buffer, {
-        contentType: 'application/pdf',
-        upsert: false
+        contentType: 'application/pdf'
       });
 
     if (uploadError) throw uploadError;
 
-    // Get public URL
-    const { data: { publicUrl } } = supabase.storage
-      .from('resumes')
-      .getPublicUrl(fileName);
-
-    // Save application to database
+    // 4. Create application
     const { data, error: dbError } = await supabase
       .from('applications')
-      .insert([{
+      .insert({
         job_id: req.body.jobId,
         user_id: req.user.id,
         name: req.body.name,
@@ -65,13 +75,23 @@ router.post('/', upload.single('resume'), async (req, res) => {
         city: req.body.city,
         education: req.body.education,
         position_applying: req.body.position_applying,
-        resume_url: publicUrl
-      }])
-      .select();
+        resume_url: `resumes/${fileName}`
+      })
+      .select()
+      .single();
 
-    if (dbError) throw dbError;
+    if (dbError) {
+      // Handle unique constraint violation (secondary protection)
+      if (dbError.code === '23505') {
+        return res.status(409).json({ 
+          error: "Duplicate application detected",
+          hint: "You may have already applied to this job"
+        });
+      }
+      throw dbError;
+    }
 
-    res.status(201).json(data[0]);
+    res.status(201).json(data);
 
   } catch (error) {
     console.error('Application Error:', error);
@@ -81,7 +101,6 @@ router.post('/', upload.single('resume'), async (req, res) => {
     });
   }
 });
-
 // Get user's applications
 router.get('/my-applications', async (req, res) => {
   try {
