@@ -15,7 +15,6 @@ function isValidUUID(uuid) {
 }
 
 // Memory storage for file uploads
-const multer = require('multer');
 const upload = multer({ 
   storage: multer.memoryStorage(),
   limits: {
