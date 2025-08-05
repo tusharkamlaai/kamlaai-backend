@@ -65,4 +65,43 @@ router.get('/stats', async (req, res) => {
   }
 });
 
+
+router.patch('/applications/:id', async (req, res) => {
+  try {
+    const { status } = req.body;
+    const validStatuses = ['pending', 'reviewed', 'approved', 'rejected'];
+
+    if (!validStatuses.includes(status)) {
+      return res.status(400).json({
+        error: "Invalid status",
+        valid_statuses: validStatuses
+      });
+    }
+
+    // Simplified update without updated_at
+    const { data, error } = await supabase
+      .from('applications')
+      .update({ status })
+      .eq('id', req.params.id)
+      .select('*')
+      .single();
+
+    if (error) throw error;
+    
+    res.json({
+      success: true,
+      application: data
+    });
+
+  } catch (error) {
+    console.error('Admin Update Error:', error);
+    res.status(500).json({
+      error: "Failed to update application",
+      details: error.message,
+      code: error.code // Include error code in response
+    });
+  }
+});
+
+
 module.exports = router;
