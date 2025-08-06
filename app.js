@@ -32,3 +32,6 @@ const PORT = process.env.PORT || 4000;
 app.listen(PORT, () => {
   console.log(`Server running on port ${PORT}`);
 });
+
+
+// get all jobs end point is /api/jobs/admin/all
