@@ -1,16 +1,21 @@
-// config/db.js
 const { createClient } = require('@supabase/supabase-js');
 
-const supabaseUrl = process.env.SUPABASE_URL;
+// Check if environment variables exist
+if (!process.env.SUPABASE_URL || !process.env.SUPABASE_KEY) {
+  throw new Error(
+    'Supabase URL and Key must be provided in environment variables'
+  );
+}
 
-// Use service role key for admin operations
-const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY; // Changed from regular key
-
-const supabase = createClient(supabaseUrl, supabaseKey, {
-  auth: {
-    persistSession: false // Recommended for server-side usage
+const supabase = createClient(
+  process.env.SUPABASE_URL,
+  process.env.SUPABASE_KEY,
+  {
+    auth: {
+      persistSession: false // Recommended for server-side usage
+    }
   }
-});
+);
 
 module.exports = supabase;
 
