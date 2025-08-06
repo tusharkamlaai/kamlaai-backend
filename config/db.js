@@ -9,14 +9,14 @@
 
 
 const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL,
-  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY,
+  process.env.SUPABASE_URL,
+  process.env.SUPABASE_ANON_KEY,
   {
+    db: {
+      schema: 'public' // Explicitly set schema
+    },
     auth: {
-      flowType: 'pkce', // Required for proper RLS
-      persistSession: true,
-      autoRefreshToken: true,
-      detectSessionInUrl: true // Fixes cross-origin issues
+      persistSession: true
     }
   }
 );
