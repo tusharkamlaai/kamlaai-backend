@@ -26,11 +26,5 @@
       "src": "/(.*)",
       "dest": "app.js"
     }
-  ],
-  "env": {
-    "SUPABASE_URL": "https://fgmstvambpzrdhjbgowo.supabase.co",
-    "SUPABASE_KEY": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImZnbXN0dmFtYnB6cmRoamJnb3dvIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTM3MjQzMzksImV4cCI6MjA2OTMwMDMzOX0.lD6SqZ4ulgbP-ZklZjbPC2xUgFmMhSNbwLXwAQFzBDw",
-    "JWT_SECRET": "rIAHAMyeR0HnDH0BvVZJhwt50HwCyCd6U1sibdg6rvIxWItamnI+5y9iHfSYtPzY8mprqAunJrRURjWywyRXag==",
-    "GOOGLE_CLIENT_ID": "321879898021-u80rbr6p5bi6htukdu0pv4j3afo6lh41.apps.googleusercontent.com"
-  }
+  ]
 }
